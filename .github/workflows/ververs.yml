@@ -1,0 +1,39 @@
+name: Heppies verversen
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ververs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Update starten
+        run: |
+          # Unieke query, zodat de CDN-cache wordt overgeslagen en de functie echt draait.
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "https://heppies.app/api/nieuws?ververs=$(date +%s)")
+          echo "heppies.app antwoordde $code"
+          test "$code" = "200"
+
+  levend-houden:
+    # Op de 1e van de maand: lege commit, anders zet GitHub het schema na 60 dagen uit.
+    if: github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lege commit op de 1e van de maand
+        run: |
+          if [ "$(date -u +%d%H)" = "0100" ] && [ "$(date -u +%M)" -lt 15 ]; then
+            git config user.name "heppies-ververs"
+            git config user.email "actions@users.noreply.github.com"
+            git commit --allow-empty -m "Levend houden $(date -u +%F)"
+            git push
+          else
+            echo "Niets te doen"
+          fi
